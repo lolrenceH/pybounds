@@ -72,12 +72,11 @@ def h(X, U):
     # Course direction in fly reference frame
     psi = np.arctan2(v_perp, v_para) # drift angle / egocentric course angle  # TODO numerically check if this is actually the drift angle - yes according to Ben
     
-    # # Unwrap angles - Elliot unwrap the angles s.t. they are continuous - no more snapping back to 0
-    # if np.array(phi).ndim > 0:
-    #     if np.array(phi).shape[0] > 1:
-    #         phi = np.unwrap(phi)
-    #         psi = np.unwrap(psi)
-    #         # gamma = np.unwrap(gamma)
+    # Unwrap the angles s.t. they are continuous - no more snapping back to 0; this is important for the observability analysis
+    if np.array(phi).ndim > 0:
+        if np.array(phi).shape[0] > 1:
+            phi = np.unwrap(phi)
+            psi = np.unwrap(psi)
 
     # Measurements
     Y  = [phi, appWind, psi]
