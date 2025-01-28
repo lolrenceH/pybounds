@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 from pybounds import Simulator, SlidingEmpiricalObservabilityMatrix, FisherObservability, SlidingFisherObservability, ObservabilityMatrixImage, colorline
 import jax
 import jax.numpy as jnp
-
+import pickle
+import numpy as np
+import tamagotchi.eval.log_analysis as log_analysis
 
 def log_shapes(pytree):
     def log_leaf(path, leaf=()):
@@ -111,8 +113,6 @@ simulator = Simulator(f, h, dt=dt, state_names=state_names, input_names=input_na
 # load the episode logs
 log_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/eval/plume_14421_37e2cd4be4c96943d0341849b40f81eb/noisy3x5b5.pkl'
 # load pkl file
-import pickle
-import numpy as np
 with open(log_fname, 'rb') as f_handle:
     episode_logs = pickle.load(f_handle)
 print('Loaded episode logs from', log_fname)
@@ -171,11 +171,10 @@ def squash_and_scale_actions(raw_actions, dt):
 
 u_sim = squash_and_scale_actions(raw_actions, dt) # can be pulled from traj_df_stacked['step'] and 'turn'; just need to scale but already squashed
 
-import tamagotchi.eval.log_analysis as log_analysis
+
 number_of_eps = 240 # pull all episodes
-dataset = 'noisy3x5b5'
-# dataset = 'constantx5b5'
-exp_folder = 'eval'
+dataset = 'noisy3x5b5' # TODO set by the user
+exp_folder = 'eval' # TODO set by the user
 model_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/weights/plume_14421_37e2cd4be4c96943d0341849b40f81eb.pt'
 eval_folder = model_fname.replace('weights', exp_folder).replace('.pt', '/')
 selected_df = log_analysis.get_selected_df(eval_folder, [dataset],
@@ -190,7 +189,7 @@ traj_df_stacked, stacked_neural_activity = log_analysis.get_traj_and_activity_an
                                                                                             obtain_traj_df = True, 
                                                                                             get_traj_tmp = True,
                                                                                             extended_metadata = True) # get_traj_tmp 
-
+# TODO do this for all trials instead of just epoch 1
 epoch_traj_df = traj_df_stacked[traj_df_stacked['ep_idx'] == 1]
 epoch_latent_activity = stacked_neural_activity[epoch_traj_df.index]
 
