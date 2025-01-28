@@ -1,3 +1,4 @@
+import gc
 import time
 import numpy as np
 import matplotlib as mpl
@@ -153,11 +154,11 @@ input_names = [
                 ]
 measurement_names = ['phi', 'appWind', 'psi'] # heading, apparent wind parallel component, drift angle/egocentric course angle
 dt = 0.04  # [s]
-simulator = Simulator(f, h, dt=dt, state_names=state_names, input_names=input_names, measurement_names=measurement_names)
+
 
 # load the episode logs
-log_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/eval/plume_14421_37e2cd4be4c96943d0341849b40f81eb/noisy3x5b5.pkl'
-model_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/weights/plume_14421_37e2cd4be4c96943d0341849b40f81eb.pt'
+log_fname = '/src/data/published_results/reproduce/best_agents/plume_20230927_VRNN_constantx5b5noisy3x5b5_stepoob_bx0.30.8_t10000004000000_q2.00.5_dmx0.80.8_dmn0.70.4_h64_wd0.0001_n4_codeVRNN_seed29882bb/noisy3x5b5.pkl'
+model_fname = '/src/data/published_results/reproduce/best_agents/my_trained_models/plume_20230927_VRNN_constantx5b5noisy3x5b5_stepoob_bx0.30.8_t10000004000000_q2.00.5_dmx0.80.8_dmn0.70.4_h64_wd0.0001_n4_codeVRNN_seed29882bb.pt'
 # load pkl file
 with open(log_fname, 'rb') as f_handle:
     episode_logs = pickle.load(f_handle)
@@ -172,9 +173,9 @@ dataset = 'noisy3x5b5' # TODO set by the user
 exp_folder = 'eval' # TODO set by the user
 eval_folder = model_fname.replace('weights', exp_folder).replace('.pt', '/')
 selected_df = log_analysis.get_selected_df(eval_folder, [dataset],
-                                        n_episodes_home=240,
-                                        n_episodes_other=240,  
-                                        balanced=False,
+                                        n_episodes_home=40,
+                                        n_episodes_other=0,  
+                                        balanced=True,
                                         oob_only=False,
                                         verbose=True)
 
@@ -183,76 +184,91 @@ traj_df_stacked, stacked_neural_activity = log_analysis.get_traj_and_activity_an
                                                                                             obtain_traj_df = True, 
                                                                                             get_traj_tmp = True,
                                                                                             extended_metadata = True) # get_traj_tmp 
-
-# load the action data
-raw_actions = episode_logs[1]['actions']
-# stack a list of actions into a 2D array
-raw_actions = np.stack(raw_actions)
-u_sim = squash_and_scale_actions(raw_actions, dt) # can be pulled from traj_df_stacked['step'] and 'turn'; just need to scale but already squashed
-
-# load the trajectory data
-# TODO do this for all trials instead of just epoch 1
-epoch_traj_df = traj_df_stacked[traj_df_stacked['ep_idx'] == 1]
-epoch_latent_activity = stacked_neural_activity[epoch_traj_df.index]
-
-gt_dict = {'x':[], 'y':[], 'v_para': [], 'v_perp': [], 'phi': [], 'w': [], 'zeta': [], 
-           'psi_ego_course_dir': [], 'v_allo': []}
-gt_dict['x'] = epoch_traj_df['loc_x'].values
-gt_dict['y'] = epoch_traj_df['loc_y'].values
-gt_dict['phi'] = np.angle(epoch_traj_df['agent_angle_x'] + 1j*epoch_traj_df['agent_angle_y'], deg=False)
-gt_dict['w'] = np.round(epoch_traj_df['wind_speed_ground'].values, 3)
-gt_dict['zeta'] = epoch_traj_df['wind_angle_ground_theta'].values # normalized by pi and then shifted to 0-1
-gt_dict['psi_ego_course_dir'] = epoch_traj_df['ego_course_direction_theta'].values # normalized by pi and then shifted to 0-1
-gt_dict['v_allo'] = np.stack(epoch_traj_df['allo_ground_velocity'].values) # PEv3: (np.array(self.agent_location) - self.agent_location_last)/self.dt; calc'd in get_eval_dfs_and_stack_them
-gt_dict['v_allo_dt'] = np.diff(gt_dict['v_allo']) / dt # acceleration
-# scale angles from 0-1 to -pi to pi
-gt_dict['zeta'] = np.pi * (2*gt_dict['zeta'] - 1)
-gt_dict['psi_ego_course_dir'] = np.pi * (2*gt_dict['psi_ego_course_dir'] - 1)
-
-gt_dict['v_para'] = np.cos(gt_dict['psi_ego_course_dir']) * np.linalg.norm(np.stack(gt_dict['v_allo']), axis=1) # cos(psi) * g = v_para
-gt_dict['v_perp'] = np.sin(gt_dict['psi_ego_course_dir']) * np.linalg.norm(np.stack(gt_dict['v_allo']), axis=1) # sin(psi) * g = v_perp
-
-gt_dict['phi'] = np.unwrap(gt_dict['phi'])
-
-u_sim['u_zeta_dot'] = np.diff(gt_dict['zeta']) / dt
-u_sim['u_w_dot'] = np.diff(gt_dict['w']) / dt
-
-
-# simulate the episode to get the ground truth states and measurements
-x0 = {'x': gt_dict['x'][0], 'y': gt_dict['y'][0], 'v_para': gt_dict['v_para'][0], 'v_perp': gt_dict['v_perp'][0], 'phi': gt_dict['phi'][0], 'w': gt_dict['w'][0], 'zeta': gt_dict['zeta'][0]}
-t_sim, x_sim, u_sim, y_sim = simulator.simulate(x0=x0, mpc=False, u=u_sim, return_full_output=True)
-
-# Choose sensors to use from O
-o_sensors = ['phi', 'appWind', 'psi']
-
-# Chose states to use from O
-o_states = [
-                # 'x',  # x position [m]
-                # 'y',  # y position [m]
-                'v_para',  # parallel ground velocity [m/s]
-                'v_perp',  # perpendicular ground velocity [m/s]
-                # 'phi', # heading [rad]
-                'w',  # ambient wind speed [m/s]
-                'zeta',  # ambient wind angle [rad]
-                ]
-
-
-# Choose time-steps to use from O
-window_size = 10 # TODO set by the user
-o_time_steps = np.arange(0, window_size, step=1)
-sensor_noise = {'phi': 0, 'appWind': 0, 'psi': 0} 
-# Construct O in sliding windows
-SEOM = SlidingEmpiricalObservabilityMatrix(simulator, t_sim, x_sim, u_sim, w=window_size, eps=1e-6)
-# Compute Fisher information matrix & inverse for each sliding window
-SFO = SlidingFisherObservability(SEOM.O_df_sliding, time=SEOM.t_sim, lam=1e-6, R=0.1, #sensor_noise_dict=sensor_noise,
-                                 states=o_states, sensors=o_sensors, time_steps=o_time_steps, w=None)
-# Pull out minimum error variance, 'time' column is the time vector shifted forward by w/2 and 'time_initial' is the original time
-EV_aligned = SFO.get_minimum_error_variance()
-EV_no_nan = EV_aligned.fillna(method='bfill').fillna(method='ffill')
-
-# Save analysis results
 analysis_results = []
-analysis_results.append([EV_no_nan, t_sim, x_sim, window_size])
+for eps_idx in traj_df_stacked['ep_idx'].unique():
+    start_time = time.time()
+    simulator = Simulator(f, h, dt=dt, state_names=state_names, input_names=input_names, measurement_names=measurement_names)
+    # load the action data
+    raw_actions = episode_logs[eps_idx]['actions']
+    # stack a list of actions into a 2D array
+    raw_actions = np.stack(raw_actions)
+    u_sim = squash_and_scale_actions(raw_actions, dt) # can be pulled from traj_df_stacked['step'] and 'turn'; just need to scale but already squashed
+
+    # load the trajectory data
+    epoch_traj_df = traj_df_stacked[traj_df_stacked['ep_idx'] == eps_idx]
+    epoch_latent_activity = stacked_neural_activity[epoch_traj_df.index]
+
+    gt_dict = {'x':[], 'y':[], 'v_para': [], 'v_perp': [], 'phi': [], 'w': [], 'zeta': [], 
+            'psi_ego_course_dir': [], 'v_allo': []}
+    gt_dict['x'] = epoch_traj_df['loc_x'].values
+    gt_dict['y'] = epoch_traj_df['loc_y'].values
+    gt_dict['phi'] = np.angle(epoch_traj_df['agent_angle_x'] + 1j*epoch_traj_df['agent_angle_y'], deg=False)
+    gt_dict['w'] = np.round(epoch_traj_df['wind_speed_ground'].values, 3)
+    gt_dict['zeta'] = epoch_traj_df['wind_angle_ground_theta'].values # normalized by pi and then shifted to 0-1
+    gt_dict['psi_ego_course_dir'] = epoch_traj_df['ego_course_direction_theta'].values # normalized by pi and then shifted to 0-1
+    gt_dict['v_allo'] = np.stack(epoch_traj_df['allo_ground_velocity'].values) # PEv3: (np.array(self.agent_location) - self.agent_location_last)/self.dt; calc'd in get_eval_dfs_and_stack_them
+    gt_dict['v_allo_dt'] = np.diff(gt_dict['v_allo']) / dt # acceleration
+    # scale angles from 0-1 to -pi to pi
+    gt_dict['zeta'] = np.pi * (2*gt_dict['zeta'] - 1)
+    gt_dict['psi_ego_course_dir'] = np.pi * (2*gt_dict['psi_ego_course_dir'] - 1)
+
+    gt_dict['v_para'] = np.cos(gt_dict['psi_ego_course_dir']) * np.linalg.norm(np.stack(gt_dict['v_allo']), axis=1) # cos(psi) * g = v_para
+    gt_dict['v_perp'] = np.sin(gt_dict['psi_ego_course_dir']) * np.linalg.norm(np.stack(gt_dict['v_allo']), axis=1) # sin(psi) * g = v_perp
+
+    gt_dict['phi'] = np.unwrap(gt_dict['phi'])
+
+    u_sim['u_zeta_dot'] = np.diff(gt_dict['zeta']) / dt
+    u_sim['u_w_dot'] = np.diff(gt_dict['w']) / dt
+
+
+    # simulate the episode to get the ground truth states and measurements
+    x0 = {'x': gt_dict['x'][0], 'y': gt_dict['y'][0], 'v_para': gt_dict['v_para'][0], 'v_perp': gt_dict['v_perp'][0], 'phi': gt_dict['phi'][0], 'w': gt_dict['w'][0], 'zeta': gt_dict['zeta'][0]}
+    t_sim, x_sim, u_sim, y_sim = simulator.simulate(x0=x0, mpc=False, u=u_sim, return_full_output=True)
+
+    # Choose sensors to use from O
+    o_sensors = ['phi', 'appWind', 'psi']
+
+    # Chose states to use from O
+    o_states = [
+                    # 'x',  # x position [m]
+                    # 'y',  # y position [m]
+                    'v_para',  # parallel ground velocity [m/s]
+                    'v_perp',  # perpendicular ground velocity [m/s]
+                    # 'phi', # heading [rad]
+                    'w',  # ambient wind speed [m/s]
+                    'zeta',  # ambient wind angle [rad]
+                    ]
+
+
+    # Choose time-steps to use from O
+    window_size = 10 # TODO set by the user
+    o_time_steps = np.arange(0, window_size, step=1)
+    sensor_noise = {'phi': 0, 'appWind': 0, 'psi': 0} 
+    # Construct O in sliding windows
+    SEOM = SlidingEmpiricalObservabilityMatrix(simulator, t_sim, x_sim, u_sim, w=window_size, eps=1e-6)
+    # Compute Fisher information matrix & inverse for each sliding window
+    SFO = SlidingFisherObservability(SEOM.O_df_sliding, time=SEOM.t_sim, lam=1e-6, R=0.1, #sensor_noise_dict=sensor_noise,
+                                    states=o_states, sensors=o_sensors, time_steps=o_time_steps, w=None)
+    # Pull out minimum error variance, 'time' column is the time vector shifted forward by w/2 and 'time_initial' is the original time
+    EV_aligned = SFO.get_minimum_error_variance()
+    EV_no_nan = EV_aligned.fillna(method='bfill').fillna(method='ffill')
+
+    # Save analysis results
+    analysis_results.append([EV_no_nan, t_sim, x_sim, window_size, eps_idx])
+    # clear the simulator
+    del simulator
+    # garbage collect
+    
+    gc.collect()
+    print('Analysis complete for episode', eps_idx, 'in', time.time() - start_time, 'seconds')
+
+print('Analysis complete')
+
+# Save the analysis results
+analysis_results_fname = log_fname.replace('.pkl', '_observability_test.pkl')
+with open(analysis_results_fname, 'wb') as f_handle:
+    pickle.dump(analysis_results, f_handle)
+print('Saved analysis results to', analysis_results_fname)
 
 # # plot the minimum error variance on trajectory # TODO wrap into a function and plot with gridspec
 # states = list(SFO.FO[0].O.columns)
