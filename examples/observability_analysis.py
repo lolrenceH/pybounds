@@ -37,20 +37,17 @@ def f(X, U):
     u_para, u_phi, u_para_dot, u_zeta_dot, u_w_dot = U # keep u_para because it is in the observation matrix
 
     # Dynamics
-    w_dot = 0*w # wind speed is constant
-    # w_dot = u_w_dot # wind speed is constant
+    # w_dot = 0*w # wind speed is constant
+    w_dot = u_w_dot # wind speed is constant
     zeta_dot = u_zeta_dot # for discontinuous wind direction change
     phi_dot = u_phi # angular velocity is controlled by agent
-    # v_perp_dot = - w * np.cos(phi - zeta) * u_phi # omit terms that would be zero
     v_perp_dot = -w * np.cos(phi - zeta) * u_phi + w * np.cos(phi - zeta) * zeta_dot - w_dot * np.sin(phi - zeta) 
-    # v_para_dot = - w * np.sin(phi - zeta) * u_phi + u_para_dot # omit terms that would be zero
     v_para_dot = -w * np.sin(phi - zeta) * u_phi + w * np.sin(phi - zeta) * zeta_dot + w_dot * np.cos(phi - zeta) + u_para_dot
     x_dot = v_para * np.cos(phi) - v_perp * np.sin(phi)
     y_dot = v_para * np.sin(phi) + v_perp * np.cos(phi)
 
-    # Package and return xdot
+    # Package and return Xdot
     X_dot = [x_dot, y_dot, v_para_dot, v_perp_dot, phi_dot, w_dot, zeta_dot]
-    # X_dot = [v_para_dot, v_perp_dot, phi_dot, w_dot, zeta_dot]
 
     return X_dot
 
