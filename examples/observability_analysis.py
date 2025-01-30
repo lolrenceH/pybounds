@@ -157,8 +157,8 @@ dt = 0.04  # [s]
 
 
 # load the episode logs
-log_fname = '/src/data/published_results/reproduce/best_agents/plume_20230927_VRNN_constantx5b5noisy3x5b5_stepoob_bx0.30.8_t10000004000000_q2.00.5_dmx0.80.8_dmn0.70.4_h64_wd0.0001_n4_codeVRNN_seed29882bb/noisy3x5b5.pkl'
-model_fname = '/src/data/published_results/reproduce/best_agents/my_trained_models/plume_20230927_VRNN_constantx5b5noisy3x5b5_stepoob_bx0.30.8_t10000004000000_q2.00.5_dmx0.80.8_dmn0.70.4_h64_wd0.0001_n4_codeVRNN_seed29882bb.pt'
+log_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/eval/plume_3492_45513dd8ac9d9cdbb3a34f957436f7af/noisy3x5b5.pkl'
+model_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/weights/plume_3492_45513dd8ac9d9cdbb3a34f957436f7af.pt'
 # load pkl file
 with open(log_fname, 'rb') as f_handle:
     episode_logs = pickle.load(f_handle)
@@ -255,6 +255,7 @@ for eps_idx in traj_df_stacked['ep_idx'].unique():
 
     # Save analysis results
     analysis_results.append([EV_no_nan, t_sim, x_sim, window_size, eps_idx])
+    # NOTE: zeta is in degrees
     # clear the simulator
     del simulator
     # garbage collect
