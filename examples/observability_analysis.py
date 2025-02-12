@@ -1,3 +1,4 @@
+# usage: python3 /src/tools/pybounds/examples/observability_analysis.py /src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.01_train_std/eval/plume_7999_b1efe0c993b1c07badde7ee2b516ae04/noisy3x5b5.pkl
 import gc
 import time
 import numpy as np
@@ -155,10 +156,10 @@ input_names = [
 measurement_names = ['phi', 'appWind', 'psi'] # heading, apparent wind parallel component, drift angle/egocentric course angle
 dt = 0.04  # [s]
 
-
+import sys, os
 # load the episode logs
-log_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/eval/plume_3492_45513dd8ac9d9cdbb3a34f957436f7af/noisy3x5b5.pkl'
-model_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/weights/plume_3492_45513dd8ac9d9cdbb3a34f957436f7af.pt'
+log_fname = sys.argv[1]
+# log_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/eval/plume_3492_45513dd8ac9d9cdbb3a34f957436f7af/noisy3x5b5.pkl'
 # load pkl file
 with open(log_fname, 'rb') as f_handle:
     episode_logs = pickle.load(f_handle)
@@ -171,7 +172,7 @@ print('Episodes contain:', episode_logs[0].keys())
 number_of_eps = 240 # pull all episodes
 dataset = 'noisy3x5b5' # TODO set by the user
 exp_folder = 'eval' # TODO set by the user
-eval_folder = model_fname.replace('weights', exp_folder).replace('.pt', '/')
+eval_folder = os.path.dirname(log_fname) + '/'
 selected_df = log_analysis.get_selected_df(eval_folder, [dataset],
                                         n_episodes_home=40,
                                         n_episodes_other=0,  
