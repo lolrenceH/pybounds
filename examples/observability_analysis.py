@@ -169,16 +169,16 @@ print('Episodes contain:', episode_logs[0].keys())
 # print('For more info on pkl content see /src/JH_boilerplate/dev_test/env/explore_pkl.ipynb')
 
 # load the selected_df 
-number_of_eps = 240 # pull all episodes
 dataset = 'noisy3x5b5' # TODO set by the user
 exp_folder = 'eval' # TODO set by the user
 eval_folder = os.path.dirname(log_fname) + '/'
 selected_df = log_analysis.get_selected_df(eval_folder, [dataset],
-                                        n_episodes_home=40,
+                                        n_episodes_home=720,
                                         n_episodes_other=0,  
                                         balanced=True,
                                         oob_only=False,
-                                        verbose=True)
+                                        verbose=True,
+                                        log_fname=log_fname) # separately provide log_fname instead of concat. dataset with eval_folder
 
 traj_df_stacked, stacked_neural_activity = log_analysis.get_traj_and_activity_and_stack_them(selected_df, 
                                                                                             obtain_neural_activity = True, 
