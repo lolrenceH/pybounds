@@ -170,6 +170,9 @@ print('Episodes contain:', episode_logs[0].keys())
 
 # load the selected_df 
 dataset = 'noisy3x5b5' # TODO set by the user
+if 'poisson' in log_fname:
+    dataset = 'poisson_noisy3x5b5'
+    
 exp_folder = 'eval' # TODO set by the user
 eval_folder = os.path.dirname(log_fname) + '/'
 selected_df = log_analysis.get_selected_df(eval_folder, [dataset],
@@ -248,7 +251,7 @@ for eps_idx in traj_df_stacked['ep_idx'].unique():
     # Construct O in sliding windows
     SEOM = SlidingEmpiricalObservabilityMatrix(simulator, t_sim, x_sim, u_sim, w=window_size, eps=1e-6)
     # Compute Fisher information matrix & inverse for each sliding window
-    SFO = SlidingFisherObservability(SEOM.O_df_sliding, time=SEOM.t_sim, lam=1e-6, R=0.1, #sensor_noise_dict=sensor_noise,
+    SFO = SlidingFisherObservability(SEOM.O_df_sliding, time=SEOM.t_sim, lam=1e-6, R=0.0001, #sensor_noise_dict=sensor_noise,
                                     states=o_states, sensors=o_sensors, time_steps=o_time_steps, w=None)
     # Pull out minimum error variance, 'time' column is the time vector shifted forward by w/2 and 'time_initial' is the original time
     EV_aligned = SFO.get_minimum_error_variance()
