@@ -159,6 +159,18 @@ dt = 0.04  # [s]
 import sys, os
 # load the episode logs
 log_fname = sys.argv[1]
+
+window_size = int(sys.argv[2])
+
+fit_all_trials = sys.argv[3] # 0 only fit HOMED trials, 1 fit all trials
+n_home = 960 # pull all 
+if fit_all_trials == '0':
+    n_other = 0 # do not pull failed
+    print('Fitting HOMED trials')
+else:
+    n_other = 960 # pull all 
+    print('Fitting ALL trials')
+
 # log_fname = '/src/data/wind_sensing/apparent_wind_visual_feedback/sw_dist_logstep_wind_0.001_debug_yes_vec_norm_train_actor_std/eval/plume_3492_45513dd8ac9d9cdbb3a34f957436f7af/noisy3x5b5.pkl'
 # load pkl file
 with open(log_fname, 'rb') as f_handle:
@@ -176,9 +188,9 @@ if 'poisson' in log_fname:
 exp_folder = 'eval' # TODO set by the user
 eval_folder = os.path.dirname(log_fname) + '/'
 selected_df = log_analysis.get_selected_df(eval_folder, [dataset],
-                                        n_episodes_home=720,
-                                        n_episodes_other=0,  
-                                        balanced=True,
+                                        n_episodes_home=n_home,
+                                        n_episodes_other=n_other,  
+                                        balanced=False,
                                         oob_only=False,
                                         verbose=True,
                                         log_fname=log_fname) # separately provide log_fname instead of concat. dataset with eval_folder
@@ -245,13 +257,13 @@ for eps_idx in traj_df_stacked['ep_idx'].unique():
 
 
     # Choose time-steps to use from O
-    window_size = 10 # TODO set by the user
+    # window_size = window_size # TODO set by the user - yes by argv
     o_time_steps = np.arange(0, window_size, step=1)
     sensor_noise = {'phi': 0, 'appWind': 0, 'psi': 0} 
     # Construct O in sliding windows
     SEOM = SlidingEmpiricalObservabilityMatrix(simulator, t_sim, x_sim, u_sim, w=window_size, eps=1e-6)
     # Compute Fisher information matrix & inverse for each sliding window
-    SFO = SlidingFisherObservability(SEOM.O_df_sliding, time=SEOM.t_sim, lam=1e-6, R=0.0001, #sensor_noise_dict=sensor_noise,
+    SFO = SlidingFisherObservability(SEOM.O_df_sliding, time=SEOM.t_sim, lam=1e-6, R=0.000001, #sensor_noise_dict=sensor_noise,
                                     states=o_states, sensors=o_sensors, time_steps=o_time_steps, w=None)
     # Pull out minimum error variance, 'time' column is the time vector shifted forward by w/2 and 'time_initial' is the original time
     EV_aligned = SFO.get_minimum_error_variance()
@@ -270,7 +282,7 @@ for eps_idx in traj_df_stacked['ep_idx'].unique():
 print('Analysis complete')
 
 # Save the analysis results
-analysis_results_fname = log_fname.replace('.pkl', '_observability_test.pkl')
+analysis_results_fname = log_fname.replace('.pkl', f'_w{window_size}_observability_test.pkl')
 with open(analysis_results_fname, 'wb') as f_handle:
     pickle.dump(analysis_results, f_handle)
 print('Saved analysis results to', analysis_results_fname)
